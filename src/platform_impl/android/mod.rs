@@ -123,8 +123,25 @@ impl<T: 'static> EventLoop<T> {
                             event::Event::Suspended
                         );
                     }
-                    Event::Pause => self.running = false,
-                    Event::Resume => self.running = true,
+                    Event::Pause => {
+                        self.running = false;
+                        call_event_handler!(
+                            event_handler,
+                            self.window_target(),
+                            control_flow,
+                            event::Event::Suspended
+                        );
+                    },
+                    Event::Resume => {
+                        self.running = true;
+
+                        call_event_handler!(
+                            event_handler,
+                            self.window_target(),
+                            control_flow,
+                            event::Event::Resumed
+                        );
+                    },
                     Event::ConfigChanged => {
                         let am = ndk_glue::native_activity().asset_manager();
                         let config = Configuration::from_asset_manager(&am);
