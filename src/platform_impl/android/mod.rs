@@ -104,90 +104,94 @@ impl<T: 'static> EventLoop<T> {
             let mut resized = false;
 
             match self.first_event.take() {
-                Some(EventSource::Callback) => match ndk_glue::poll_events().unwrap() {
-                    Event::WindowCreated => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Resumed
-                        );
-                    }
-                    Event::WindowResized => resized = true,
-                    Event::WindowRedrawNeeded => redraw = true,
-                    Event::WindowDestroyed => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Suspended
-                        );
-                    }
-                    Event::Pause => {
-                        self.running = false;
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Suspended
-                        );
-                    },
-                    Event::Resume => {
-                        self.running = true;
+                Some(EventSource::Callback) => {
+                    let event = ndk_glue::poll_events().unwrap();
+                    println!("ndk_glue event: {:?}", event);
 
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Resumed
-                        );
-                    },
-                    Event::ConfigChanged => {
-                        let am = ndk_glue::native_activity().asset_manager();
-                        let config = Configuration::from_asset_manager(&am);
-                        let old_scale_factor = MonitorHandle.scale_factor();
-                        *CONFIG.write().unwrap() = config;
-                        let scale_factor = MonitorHandle.scale_factor();
-                        if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                            let mut size = MonitorHandle.size();
-                            let event = event::Event::WindowEvent {
-                                window_id: window::WindowId(WindowId),
-                                event: event::WindowEvent::ScaleFactorChanged {
-                                    new_inner_size: &mut size,
-                                    scale_factor,
-                                },
-                            };
+                    match event {
+                        Event::WindowCreated => {
                             call_event_handler!(
                                 event_handler,
                                 self.window_target(),
                                 control_flow,
-                                event
+                                event::Event::Resumed
                             );
                         }
-                    }
-                    Event::WindowHasFocus => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::WindowEvent {
-                                window_id: window::WindowId(WindowId),
-                                event: event::WindowEvent::Focused(true),
+                        Event::WindowResized => resized = true,
+                        Event::WindowRedrawNeeded => redraw = true,
+                        Event::WindowDestroyed => {
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Suspended
+                            );
+                        }
+                        Event::Pause => {
+                            self.running = false;
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::ActivityPaused
+                            );
+                        },
+                        Event::Resume => {
+                            self.running = true;
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::ActivityResumed
+                            );
+                        },
+                        Event::ConfigChanged => {
+                            let am = ndk_glue::native_activity().asset_manager();
+                            let config = Configuration::from_asset_manager(&am);
+                            let old_scale_factor = MonitorHandle.scale_factor();
+                            *CONFIG.write().unwrap() = config;
+                            let scale_factor = MonitorHandle.scale_factor();
+                            if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
+                                let mut size = MonitorHandle.size();
+                                let event = event::Event::WindowEvent {
+                                    window_id: window::WindowId(WindowId),
+                                    event: event::WindowEvent::ScaleFactorChanged {
+                                        new_inner_size: &mut size,
+                                        scale_factor,
+                                    },
+                                };
+                                call_event_handler!(
+                                    event_handler,
+                                    self.window_target(),
+                                    control_flow,
+                                    event
+                                );
                             }
-                        );
+                        }
+                        Event::WindowHasFocus => {
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::WindowEvent {
+                                    window_id: window::WindowId(WindowId),
+                                    event: event::WindowEvent::Focused(true),
+                                }
+                            );
+                        }
+                        Event::WindowLostFocus => {
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::WindowEvent {
+                                    window_id: window::WindowId(WindowId),
+                                    event: event::WindowEvent::Focused(false),
+                                }
+                            );
+                        }
+                        _ => {}
                     }
-                    Event::WindowLostFocus => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::WindowEvent {
-                                window_id: window::WindowId(WindowId),
-                                event: event::WindowEvent::Focused(false),
-                            }
-                        );
-                    }
-                    _ => {}
                 },
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
